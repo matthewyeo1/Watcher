@@ -6,7 +6,7 @@ import numpy as np
 import os
 from torch.utils.data import DataLoader, TensorDataset
 
-# ==== Step 1: Load Stock Data ==== #
+# ==== Step 1: Load Stock Data and Normalize ==== #
 print(os.getcwd())
 df = pd.read_csv(r"C:\Users\akaas\PycharmProjects\Watcher\stocks_data.csv")
 
@@ -15,7 +15,14 @@ T = 30  # Time steps (past days)
 num_features = 5  # Open, High, Low, Close, Volume
 d = 32  # Hidden dimension for attention
 num_heads = 4  # Multi-head attention
-batch_size = 9  # 9 stocks
+batch_size = 32  # Increased batch size
+
+# Normalize stock features (Standardization)
+df["Open"] = (df["Open"] - df["Open"].mean()) / df["Open"].std()
+df["High"] = (df["High"] - df["High"].mean()) / df["High"].std()
+df["Low"] = (df["Low"] - df["Low"].mean()) / df["Low"].std()
+df["Close"] = (df["Close"] - df["Close"].mean()) / df["Close"].std()
+df["Volume"] = (df["Volume"] - df["Volume"].mean()) / df["Volume"].std()
 
 # Hardcoded sentiment analysis values
 sentiment_values = torch.tensor([0.066, 0.088, 0.112, 0.153, 0.056, 0.021, 0.032, 0.07, 0.184], dtype=torch.float32)
@@ -23,37 +30,26 @@ sentiment_values = torch.tensor([0.066, 0.088, 0.112, 0.153, 0.056, 0.021, 0.032
 # Select features
 feature_cols = ["Open", "High", "Low", "Close", "Volume"]
 stocks = df["Stock"].unique()
-assert len(stocks) == batch_size, "Mismatch in batch size!"
+assert len(stocks) == len(sentiment_values), "Mismatch in sentiment values and stocks!"
 
 # ==== Step 2: Prepare Sliding Window Data ==== #
-X_batches, Y_batches = [], []
+X_batches, Y_batches, sentiment_batches = [], [], []
 
 for stock in stocks:
     stock_df = df[df["Stock"] == stock].sort_values(by="Date")
     stock_features = stock_df[feature_cols].values
+    num_samples = len(stock_features) - (T + 1)
+    stock_index = np.where(stocks == stock)[0][0]
 
-    for i in range(len(stock_features) - (T + 1)):
+    for i in range(num_samples):
         X_batches.append(stock_features[i: i + T])
         Y_batches.append(stock_features[i + T][3])  # Close price
+        sentiment_batches.append(sentiment_values[stock_index])
 
 # Convert to PyTorch tensors
 X_tensor = torch.tensor(np.array(X_batches), dtype=torch.float32)  # (N, 30, 5)
 Y_tensor = torch.tensor(np.array(Y_batches), dtype=torch.float32).unsqueeze(1)  # (N, 1)
-
-# Expand sentiment values to match the number of training samples
-sentiment_batches = []
-for stock in stocks:
-    stock_df = df[df["Stock"] == stock].sort_values(by="Date")
-    num_samples = len(stock_df) - (T + 1)  # Matches X and Y
-    stock_index = np.where(stocks == stock)[0][0]  # Find stock index
-    sentiment_batches.extend([sentiment_values[stock_index]] * num_samples)  # Repeat for exact number of samples
-
-sentiment_tensor = torch.tensor(sentiment_batches, dtype=torch.float32).view(-1, 1)
-
-print(f"X_tensor shape: {X_tensor.shape}")  # Should be (N, 30, 5)
-print(f"Y_tensor shape: {Y_tensor.shape}")  # Should be (N, 1)
-print(f"sentiment_tensor shape: {sentiment_tensor.shape}")  # Should be (N, 1)
-
+sentiment_tensor = torch.tensor(sentiment_batches, dtype=torch.float32).view(-1, 1)  # (N, 1)
 
 # DataLoader
 dataset = TensorDataset(X_tensor, sentiment_tensor, Y_tensor)
@@ -110,35 +106,41 @@ class MultiHeadSelfAttention(nn.Module):
 class MLP(nn.Module):
     def __init__(self, d):
         super().__init__()
-        self.fc1 = nn.Linear(d, 64)
-        self.fc2 = nn.Linear(64, 1)
+        self.fc1 = nn.Linear(d, 128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, 1)
         self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.3)
         self.sentiment_weight = nn.Linear(1, 1)
 
     def forward(self, Z, sentiment):
-        stock_pred = self.fc2(self.relu(self.fc1(Z[:, -1, :])))
+        x = self.relu(self.fc1(Z[:, -1, :]))
+        x = self.dropout(x)
+        x = self.relu(self.fc2(x))
+        stock_pred = self.fc3(x)
         sentiment_adjustment = self.sentiment_weight(sentiment)
         return stock_pred + sentiment_adjustment
 
 
 # ==== Step 4: Training Setup ==== #
-epochs = 100
-lr = 0.001
-
+epochs = 150
+lr = 0.0005
 feature_expansion = FeatureExpansion(num_features, d)
 pos_encoding = PositionalEncoding(d, T)
 multihead_attention = MultiHeadSelfAttention(d, num_heads)
 mlp = MLP(d)
 
-loss_fn = nn.MSELoss()
+loss_fn = nn.HuberLoss(delta=1.0)
 optimizer = torch.optim.Adam(
     list(feature_expansion.parameters()) +
     list(pos_encoding.parameters()) +
     list(multihead_attention.parameters()) +
     list(mlp.parameters()), lr=lr
 )
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
 
-# ==== Step 5: Training Loop ==== #
+best_loss = float('inf')
+counter = 0
 for epoch in range(epochs):
     for X_batch, sentiment_batch, Y_batch in train_loader:
         optimizer.zero_grad()
@@ -149,10 +151,14 @@ for epoch in range(epochs):
         loss = loss_fn(prediction, Y_batch)
         loss.backward()
         optimizer.step()
-
+    scheduler.step(loss)
+    if loss.item() < best_loss:
+        best_loss = loss.item()
+        counter = 0
+    else:
+        counter += 1
+    if counter >= 15:
+        print(f"Early stopping at epoch {epoch}")
+        break
     if epoch % 10 == 0:
         print(f"Epoch {epoch}, Loss: {loss.item()}")
-
-# ==== Final Output ==== #
-print("\nFinal Prediction for Next Day:")
-print(prediction.detach().numpy())
