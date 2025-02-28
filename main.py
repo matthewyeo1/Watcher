@@ -6,6 +6,9 @@ import time
 from urls import urls
 from stocks import Stock
 import numpy as np  
+import pandas as pd
+import yfinance as yf
+from stock_tracker import fetch_stock_prices
 
 nltk.download('vader_lexicon')
 
@@ -85,7 +88,7 @@ def print_sentiment_matrix(Stock, sentiment):
     #print("Sentiment Matrix (neg, neu, pos):")
     print(array)
 
-def main():
+def run_sentiment_analysis():
     for Stock, stocks in urls.items(): 
         for url in stocks: 
             #print(f"Scraping article from: {url}")
@@ -98,6 +101,10 @@ def main():
                 print("\n" + "-"*50 + "\n")
         
             time.sleep(2)
+
+def main():
+    # run_sentiment_analysis()
+    fetch_stock_prices()
 
 if __name__ == "__main__":
     main()
