@@ -6,6 +6,9 @@ import numpy as np
 import os
 from torch.utils.data import DataLoader, TensorDataset
 
+# Select device (GPU if available, otherwise CPU)
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 # ==== Step 1: Load Stock Data and Normalize ==== #
 print(os.getcwd())
 df = pd.read_csv(r"stocks_data.csv")
@@ -173,20 +176,34 @@ for epoch in range(epochs):
 
     if counter >= 15:
         print(f"Early stopping at epoch {epoch}. Final loss: {loss.item()}")
-        print("Prediction for tomorrow (denormalized): ")
-        
-        # Concatenate all predictions and print them
+
+        # Concatenate all predictions
         final_predictions = np.concatenate(final_predictions, axis=0)
-        print(final_predictions)  # This will print all predictions for the batch
+
+        # Denormalize predictions
+        mean_close = df["Close"].mean()
+        std_close = df["Close"].std()
+        denormalized_predictions = (final_predictions * std_close) + mean_close
+
+        print("Prediction for tomorrow (denormalized):")
+        print(denormalized_predictions)  # Now it's actual price values
         break
 
     # Print loss at regular intervals
     if epoch % 10 == 0:
         print(f"Epoch {epoch}, Loss: {loss.item()}")
 
-# If early stopping doesn't trigger, print the final prediction after the last epoch
 if counter < 15:
     print(f"Training completed at epoch {epochs-1}. Final loss: {loss.item()}")
     print("Prediction for tomorrow (denormalized): ")
+
+    # Concatenate all predictions
     final_predictions = np.concatenate(final_predictions, axis=0)
-    print(final_predictions)  # Print all predictions for the final batch
+
+    # Denormalize predictions
+    mean_close = df["Close"].mean()
+    std_close = df["Close"].std()
+    denormalized_predictions = (final_predictions * std_close) + mean_close
+
+    print(denormalized_predictions)  # Print denormalized prices
+
