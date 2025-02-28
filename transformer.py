@@ -141,6 +141,7 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', fa
 
 best_loss = float('inf')  # Initialize best_loss to a very large value
 counter = 0
+final_predictions = []  # List to store all final predictions
 
 for epoch in range(epochs):
     for X_batch, sentiment_batch, Y_batch in train_loader:
@@ -150,8 +151,11 @@ for epoch in range(epochs):
         Z, A = multihead_attention(X_pos)
         prediction = mlp(Z, sentiment_batch)
 
-        # Denormalize the prediction
+        # Denormalize the prediction (apply the inverse of normalization)
         predicted_price = (prediction * df["Close"].std()) + df["Close"].mean()
+
+        # Store the final predictions of the last batch for later printing
+        final_predictions.append(predicted_price.detach().cpu().numpy())  # Detach and move to CPU, then convert to numpy
 
         # Compute loss with normalized values
         loss = loss_fn(prediction, Y_batch)
@@ -170,9 +174,19 @@ for epoch in range(epochs):
     if counter >= 15:
         print(f"Early stopping at epoch {epoch}. Final loss: {loss.item()}")
         print("Prediction for tomorrow (denormalized): ")
-        print(predicted_price.detach().numpy())  # Print denormalized prediction
+        
+        # Concatenate all predictions and print them
+        final_predictions = np.concatenate(final_predictions, axis=0)
+        print(final_predictions)  # This will print all predictions for the batch
         break
 
     # Print loss at regular intervals
     if epoch % 10 == 0:
         print(f"Epoch {epoch}, Loss: {loss.item()}")
+
+# If early stopping doesn't trigger, print the final prediction after the last epoch
+if counter < 15:
+    print(f"Training completed at epoch {epochs-1}. Final loss: {loss.item()}")
+    print("Prediction for tomorrow (denormalized): ")
+    final_predictions = np.concatenate(final_predictions, axis=0)
+    print(final_predictions)  # Print all predictions for the final batch
