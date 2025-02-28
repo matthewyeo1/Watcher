@@ -1,19 +1,7 @@
 import yfinance as yf
 import time
 from enum import Enum
-
-# Enum for stock names and tickers
-class Stock(Enum):
-    APPLE = "AAPL"
-    TESLA = "TSLA"
-    NVIDIA = "NVDA"
-    AMAZON = "AMZN"
-    MICROSOFT = "MSFT"
-    META = "META"
-    ALIBABA = "BABA"
-    TENCENT = "0700.HK"
-    INTEL = "INTC"
-    HP = "HPQ"
+from stocks import Stock
 
 # Filter out stocks without tickers
 stock_tickers = {stock.name: stock.value for stock in Stock if stock.value}
