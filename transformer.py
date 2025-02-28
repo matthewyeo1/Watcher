@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 # ==== Step 1: Load Stock Data and Normalize ==== #
 print(os.getcwd())
-df = pd.read_csv(r"C:\Users\akaas\PycharmProjects\Watcher\stocks_data.csv")
+df = pd.read_csv(r"stocks_data.csv")
 
 # Parameters
 T = 30  # Time steps (past days)
@@ -139,8 +139,9 @@ optimizer = torch.optim.Adam(
 )
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
 
-best_loss = float('inf')
+best_loss = float('inf')  # Initialize best_loss to a very large value
 counter = 0
+
 for epoch in range(epochs):
     for X_batch, sentiment_batch, Y_batch in train_loader:
         optimizer.zero_grad()
@@ -151,14 +152,22 @@ for epoch in range(epochs):
         loss = loss_fn(prediction, Y_batch)
         loss.backward()
         optimizer.step()
+    
     scheduler.step(loss)
+
+    # Early stopping logic
     if loss.item() < best_loss:
         best_loss = loss.item()
         counter = 0
     else:
         counter += 1
+
     if counter >= 15:
-        print(f"Early stopping at epoch {epoch}")
+        print(f"Early stopping at epoch {epoch}. Final loss: {loss.item()}")
+        print("Prediction for tomorrow: ")
+        print(prediction.detach().numpy())
         break
+    
+    # Print loss at regular intervals
     if epoch % 10 == 0:
         print(f"Epoch {epoch}, Loss: {loss.item()}")

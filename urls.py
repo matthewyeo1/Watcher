@@ -6,11 +6,6 @@ urls = {
     "https://www.fool.com/investing/2024/06/12/why-apple-stock-popped-again-wednesday-morning/",
     "https://www.cnbc.com/2024/04/11/apple-stock-just-had-its-best-day-since-last-may-.html",
     ],
-    Stock.SAMSUNG: [
-    "https://sg.finance.yahoo.com/news/samsung-workers-pay-raise-stock-161355341.html",
-    "https://www.straitstimes.com/business/companies-markets/samsung-shares-jump-on-9-6-billion-buyback-after-missing-ai-boom",
-    "https://www.ft.com/content/82f661c5-370d-4ea6-8654-353331769369",
-    ],
     Stock.TESLA: [
     "https://www.nytimes.com/2025/02/25/business/tesla-stock-elon-musk-trump.html",
     "https://www.cnbc.com/2025/02/25/teslas-market-cap-sinks-below-1-trillion-as-stock-falls-more-than-9percent.html",
@@ -45,11 +40,6 @@ urls = {
     "https://edition.cnn.com/2024/01/16/tech/tencent-palm-scanning-service-china-intl-hnk/index.html",
     "https://www.fool.com/investing/2025/01/06/why-tencent-stock-was-falling-today/",
     "https://finance.yahoo.com/news/tencent-loses-billions-market-value-101912419.html?fr=sycsrp_catchall",
-    ],
-    Stock.HUAWEI: [
-    "https://finance.yahoo.com/news/huawei-drives-34-billion-china-000000512.html?fr=sycsrp_catchall",
-    "https://finance.yahoo.com/news/huawei-revenue-nears-100-billion-024445749.html?fr=sycsrp_catchall",
-    "https://finance.yahoo.com/news/huawei-profit-doubles-made-china-085028187.html?fr=sycsrp_catchall",
     ],
     Stock.INTEL: [
     "https://sg.finance.yahoo.com/news/intel-corporation-intc-best-performing-181900057.html",
