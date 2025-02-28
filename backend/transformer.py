@@ -136,3 +136,14 @@ for epoch in range(epochs):
 # ==== Final Output ==== #
 print("\nFinal Prediction for Day 31:")
 print(prediction.detach().numpy())
+
+final_prediction = prediction.detach().numpy()
+
+# ==== Save the Model as .pth File ==== #
+torch.save(mlp.state_dict(), 'stock_predictor_model.pth')
+print("Model saved as 'stock_predictor_model.pth'")
+
+# ==== Save Final Output to a .txt File ==== #
+with open("final_prediction.txt", "w") as f:
+    f.write(f"Final Prediction for Day 31: {final_prediction[0][0]}\n")
+    print("Prediction saved to 'final_prediction.txt'")
