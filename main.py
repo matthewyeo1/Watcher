@@ -1,79 +1,110 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import requests
+from bs4 import BeautifulSoup as bs
+import nltk
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+import time
+from urls import urls
+from stocks import Stock
+import numpy as np  
+import pandas as pd
+import yfinance as yf
+from stock_tracker import fetch_stock_prices
 
-# ==== Step 1: Generate Synthetic Stock Data ==== #
-T = 30  # Number of past days (time steps)
-num_features = 6  # Features per day (Open, Close, High, Low, Volume, Sentiment)
+nltk.download('vader_lexicon')
 
-# Fake stock data (batch_size=1 for simplicity)
-X = torch.randn(1, T, num_features)  # Shape: (batch_size, T, num_features)
-Y = torch.randn(1, 1, 1)  # Target is only the next day's stock price (batch_size, 1, 1)
+sia = SentimentIntensityAnalyzer()
 
-# ==== Step 2: Implement Self-Attention ==== #
-class SelfAttention(nn.Module):
-    def __init__(self, num_features, d):
-        super().__init__()
-        self.W_Q = nn.Linear(num_features, d, bias=False)
-        self.W_K = nn.Linear(num_features, d, bias=False)
-        self.W_V = nn.Linear(num_features, d, bias=False)
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+}
 
-    def forward(self, X):
-        Q = self.W_Q(X)  # Shape: (batch_size, T, d)
-        K = self.W_K(X)  # Shape: (batch_size, T, d)
-        V = self.W_V(X)  # Shape: (batch_size, T, d)
+new_words = {
+    "bankruptcy": -3.5, "crash": -3.0, "bearish": -2.5, "layoff": -2.0, 
+    "downturn": -2.5, "recession": -3.0, "default": -3.5, "sell-off": -3.0,
+    "slip": -1.0, "worse": -1.5, "pressure": -1.0
+}
+sia.lexicon.update(new_words)
 
-        # Compute attention scores (Scaled Dot-Product)
-        scores = torch.matmul(Q, K.transpose(-2, -1)) / (Q.shape[-1] ** 0.5)
-        A = F.softmax(scores, dim=-1)  # Apply softmax to get attention weights
 
-        # Compute weighted sum (context vector)
-        Z = torch.matmul(A, V)  # Shape: (batch_size, T, d)
-        return Z, A
+def get_article_content(url):
+    response = requests.get(url, headers=headers)
+    #print(f"Status Code: {response.status_code}")
+    if response.status_code == 200:
+        page_content = bs(response.content, 'html.parser')
 
-# ==== Step 3: MLP for Regression ==== #
-class MLP(nn.Module):
-    def __init__(self, d, output_dim):
-        super().__init__()
-        self.fc1 = nn.Linear(d, 64)  # Hidden layer
-        self.fc2 = nn.Linear(64, output_dim)  # Output layer
-        self.relu = nn.ReLU()
+        article_text = ''
+        
+        paragraphs = page_content.find_all('p')
+        headlines = page_content.find_all(['h1', 'h2', 'h3'])
+        meta_desc = page_content.find("meta", attrs={"name": "description"})
+        og_desc = page_content.find("meta", property="og:description")
 
-    def forward(self, Z):
-        return self.fc2(self.relu(self.fc1(Z)))  # Shape: (batch_size, d, output_dim)
+        for p in paragraphs:
+            article_text += p.get_text() + " "
+        for h in headlines:
+            article_text += h.get_text() + " "
+        if meta_desc and 'content' in meta_desc.attrs:
+            article_text += meta_desc['content'] + " "
+        if og_desc and 'content' in og_desc.attrs:
+            article_text += og_desc['content'] + " "
 
-# ==== Step 4: Training Setup ==== #
-d = 32  # Hidden dimension for attention
-epochs = 100
-lr = 0.001
+        return article_text.strip()
 
-# Initialize self-attention and MLP
-attention = SelfAttention(num_features, d)
-mlp = MLP(d, output_dim=1)
+    else:
+        print(f"Failed to retrieve the article from {url}")
+        return None
 
-# Define loss and optimizer
-loss_fn = nn.MSELoss()
-optimizer = torch.optim.Adam(list(attention.parameters()) + list(mlp.parameters()), lr=lr)
 
-# ==== Training Loop ==== #
-for epoch in range(epochs):
-    optimizer.zero_grad()  # Reset gradients
+def analyze_sentiment(article_text):
+    sentiment = sia.polarity_scores(article_text)
 
-    Z, A = attention(X)  # Forward pass (self-attention)
+    negative_words = list(new_words.keys())
+    found_neg_words = [word for word in negative_words if word in article_text.lower()]
 
-    # Pool Z to get a single vector summary of past 30 days
-    Z_pooled = Z.mean(dim=1)  # Shape: (batch_size, d)
+    sentiment['neg'] 
+    sentiment['pos']  
 
-    # Predict a single value
-    predictions = mlp(Z_pooled).unsqueeze(1)  # Shape: (batch_size, 1, 1)
+    if found_neg_words:
+        sentiment['neg'] *= 1.5  
+        sentiment['pos'] *= 0.5 
 
-    loss = loss_fn(predictions, Y)  # Compute loss
-    loss.backward()  # Backpropagation
-    optimizer.step()  # Update weights
+    sentiment['neg'] = round(sentiment['neg'], 3)
+    sentiment['pos'] = round(sentiment['pos'], 3) 
 
-    if epoch % 10 == 0:
-        print(f"Epoch {epoch}, Loss: {loss.item()}")
+    return sentiment
+    
 
-# ==== Final Output ==== #
-print("\nFinal Prediction for Day 31:")
-print(predictions.detach().numpy())  # If using GPU: predictions.cpu().detach().numpy()
+
+def print_sentiment_matrix(Stock, sentiment):
+    
+    array = np.array = [
+        [Stock.value],
+        [sentiment['neg']],
+        [sentiment['neu']],
+        [sentiment['pos']]
+    ]
+    
+   
+    #print("Sentiment Matrix (neg, neu, pos):")
+    print(array)
+
+def run_sentiment_analysis():
+    for Stock, stocks in urls.items(): 
+        for url in stocks: 
+            #print(f"Scraping article from: {url}")
+            article_text = get_article_content(url)
+        
+            if article_text:
+                sentiment = analyze_sentiment(article_text)
+                #print(f"Sentiment Analysis for {url}:")
+                print_sentiment_matrix(Stock, sentiment)
+                print("\n" + "-"*50 + "\n")
+        
+            time.sleep(2)
+
+def main():
+    # run_sentiment_analysis()
+    fetch_stock_prices()
+
+if __name__ == "__main__":
+    main()
