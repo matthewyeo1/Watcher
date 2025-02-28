@@ -149,10 +149,15 @@ for epoch in range(epochs):
         X_pos = pos_encoding(X_expanded)
         Z, A = multihead_attention(X_pos)
         prediction = mlp(Z, sentiment_batch)
+
+        # Denormalize the prediction
+        predicted_price = (prediction * df["Close"].std()) + df["Close"].mean()
+
+        # Compute loss with normalized values
         loss = loss_fn(prediction, Y_batch)
         loss.backward()
         optimizer.step()
-    
+
     scheduler.step(loss)
 
     # Early stopping logic
@@ -164,10 +169,10 @@ for epoch in range(epochs):
 
     if counter >= 15:
         print(f"Early stopping at epoch {epoch}. Final loss: {loss.item()}")
-        print("Prediction for tomorrow: ")
-        print(prediction.detach().numpy())
+        print("Prediction for tomorrow (denormalized): ")
+        print(predicted_price.detach().numpy())  # Print denormalized prediction
         break
-    
+
     # Print loss at regular intervals
     if epoch % 10 == 0:
         print(f"Epoch {epoch}, Loss: {loss.item()}")
