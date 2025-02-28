@@ -1,22 +1,53 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 # ==== Step 1: Generate Synthetic Stock Data ==== #
 T = 30  # Number of past days (time steps)
 num_features = 6  # Features per day (Open, Close, High, Low, Volume, Sentiment)
+d = 32  # Hidden dimension for attention
 
 # Fake stock data (batch_size=1 for simplicity)
-X = torch.randn(1, T, num_features)  # Shape: (batch_size, T, num_features)
-Y = torch.randn(1, 1, 1)  # Target is only the next day's stock price (batch_size, 1, 1)
+X = torch.randn(1, T, num_features)  # Shape: (1, 30, 6)
+Y = torch.randn(1, 1)  # Target for day 31 (predicting a single value)
 
-# ==== Step 2: Implement Self-Attention ==== #
-class SelfAttention(nn.Module):
+# ==== Step 2: Feature Expansion Layer ==== #
+class FeatureExpansion(nn.Module):
     def __init__(self, num_features, d):
         super().__init__()
-        self.W_Q = nn.Linear(num_features, d, bias=False)
-        self.W_K = nn.Linear(num_features, d, bias=False)
-        self.W_V = nn.Linear(num_features, d, bias=False)
+        self.fc = nn.Linear(num_features, d)  # Expand feature dimension
+
+    def forward(self, X):
+        return self.fc(X)  # Shape: (batch_size, T, d)
+
+# ==== Step 3: Positional Encoding ==== #
+class PositionalEncoding(nn.Module):
+    def __init__(self, d, T):
+        super().__init__()
+        self.d = d
+
+        # Compute positional encodings for each time step (T) and feature dimension (d)
+        pe = torch.zeros(T, d)
+        position = torch.arange(0, T, dtype=torch.float).unsqueeze(1)  # Shape: (T, 1)
+        div_term = torch.exp(torch.arange(0, d, 2).float() * (-np.log(10000.0) / d))  # Scaling factor
+
+        # Apply sine to even indices and cosine to odd indices
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+
+        self.pe = pe.unsqueeze(0)  # Shape: (1, T, d), ready for batch processing
+
+    def forward(self, X):
+        return X + self.pe[:, :X.shape[1], :]  # Add positional encoding
+
+# ==== Step 4: Self-Attention with Positional Encoding ==== #
+class SelfAttention(nn.Module):
+    def __init__(self, d):
+        super().__init__()
+        self.W_Q = nn.Linear(d, d, bias=False)
+        self.W_K = nn.Linear(d, d, bias=False)
+        self.W_V = nn.Linear(d, d, bias=False)
 
     def forward(self, X):
         Q = self.W_Q(X)  # Shape: (batch_size, T, d)
@@ -31,43 +62,44 @@ class SelfAttention(nn.Module):
         Z = torch.matmul(A, V)  # Shape: (batch_size, T, d)
         return Z, A
 
-# ==== Step 3: MLP for Regression ==== #
+# ==== Step 5: MLP for Regression ==== #
 class MLP(nn.Module):
-    def __init__(self, d, output_dim):
+    def __init__(self, d):
         super().__init__()
         self.fc1 = nn.Linear(d, 64)  # Hidden layer
-        self.fc2 = nn.Linear(64, output_dim)  # Output layer
+        self.fc2 = nn.Linear(64, 1)  # Output layer (single predicted stock value)
         self.relu = nn.ReLU()
 
     def forward(self, Z):
-        return self.fc2(self.relu(self.fc1(Z)))  # Shape: (batch_size, d, output_dim)
+        return self.fc2(self.relu(self.fc1(Z[:, -1, :])))  # Take last time step only
 
-# ==== Step 4: Training Setup ==== #
-d = 32  # Hidden dimension for attention
+# ==== Step 6: Training Setup ==== #
 epochs = 100
 lr = 0.001
 
-# Initialize self-attention and MLP
-attention = SelfAttention(num_features, d)
-mlp = MLP(d, output_dim=1)
+# Initialize models
+feature_expansion = FeatureExpansion(num_features, d)
+pos_encoding = PositionalEncoding(d, T)
+attention = SelfAttention(d)
+mlp = MLP(d)
 
 # Define loss and optimizer
 loss_fn = nn.MSELoss()
-optimizer = torch.optim.Adam(list(attention.parameters()) + list(mlp.parameters()), lr=lr)
+optimizer = torch.optim.Adam(
+    list(feature_expansion.parameters()) +
+    list(attention.parameters()) +
+    list(mlp.parameters()), lr=lr)
 
 # ==== Training Loop ==== #
 for epoch in range(epochs):
     optimizer.zero_grad()  # Reset gradients
 
-    Z, A = attention(X)  # Forward pass (self-attention)
+    X_expanded = feature_expansion(X)  # Expand feature size (6 → 32)
+    X_pos = pos_encoding(X_expanded)  # Apply positional encoding
+    Z, A = attention(X_pos)  # Forward pass (self-attention)
+    prediction = mlp(Z)  # Forward pass (MLP)
 
-    # Pool Z to get a single vector summary of past 30 days
-    Z_pooled = Z.mean(dim=1)  # Shape: (batch_size, d)
-
-    # Predict a single value
-    predictions = mlp(Z_pooled).unsqueeze(1)  # Shape: (batch_size, 1, 1)
-
-    loss = loss_fn(predictions, Y)  # Compute loss
+    loss = loss_fn(prediction, Y)  # Compute loss
     loss.backward()  # Backpropagation
     optimizer.step()  # Update weights
 
@@ -76,4 +108,4 @@ for epoch in range(epochs):
 
 # ==== Final Output ==== #
 print("\nFinal Prediction for Day 31:")
-print(predictions.detach().numpy())  # If using GPU: predictions.cpu().detach().numpy()
+print(prediction.detach().numpy())  # If using GPU: prediction.cpu().detach().numpy()
