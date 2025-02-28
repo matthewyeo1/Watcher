@@ -20,12 +20,10 @@ d = 32  # Hidden dimension for attention
 num_heads = 4  # Multi-head attention
 batch_size = 32  # Increased batch size
 
-# Normalize stock features (Standardization)
-df["Open"] = (df["Open"] - df["Open"].mean()) / df["Open"].std()
-df["High"] = (df["High"] - df["High"].mean()) / df["High"].std()
-df["Low"] = (df["Low"] - df["Low"].mean()) / df["Low"].std()
-df["Close"] = (df["Close"] - df["Close"].mean()) / df["Close"].std()
-df["Volume"] = (df["Volume"] - df["Volume"].mean()) / df["Volume"].std()
+# Normalize stock features (Standardization) - Using training data statistics
+mean_values = df[["Open", "High", "Low", "Close", "Volume"]].mean()
+std_values = df[["Open", "High", "Low", "Close", "Volume"]].std()
+df[["Open", "High", "Low", "Close", "Volume"]] = (df[["Open", "High", "Low", "Close", "Volume"]] - mean_values) / std_values
 
 # Hardcoded sentiment analysis values
 sentiment_values = torch.tensor([0.066, 0.088, 0.112, 0.153, 0.056, 0.021, 0.032, 0.07, 0.184], dtype=torch.float32)
@@ -50,9 +48,9 @@ for stock in stocks:
         sentiment_batches.append(sentiment_values[stock_index])
 
 # Convert to PyTorch tensors
-X_tensor = torch.tensor(np.array(X_batches), dtype=torch.float32)  # (N, 30, 5)
-Y_tensor = torch.tensor(np.array(Y_batches), dtype=torch.float32).unsqueeze(1)  # (N, 1)
-sentiment_tensor = torch.tensor(sentiment_batches, dtype=torch.float32).view(-1, 1)  # (N, 1)
+X_tensor = torch.tensor(np.array(X_batches), dtype=torch.float32).to(device)  # (N, 30, 5)
+Y_tensor = torch.tensor(np.array(Y_batches), dtype=torch.float32).unsqueeze(1).to(device)  # (N, 1)
+sentiment_tensor = torch.tensor(sentiment_batches, dtype=torch.float32).view(-1, 1).to(device)  # (N, 1)
 
 # DataLoader
 dataset = TensorDataset(X_tensor, sentiment_tensor, Y_tensor)
@@ -78,7 +76,7 @@ class PositionalEncoding(nn.Module):
         div_term = torch.exp(torch.arange(0, d, 2).float() * (-np.log(10000.0) / d))
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        self.pe = pe.unsqueeze(0)
+        self.pe = pe.unsqueeze(0).to(device)
 
     def forward(self, X):
         return X + self.pe[:, :X.shape[1], :]
@@ -103,7 +101,7 @@ class MultiHeadSelfAttention(nn.Module):
         scores = torch.matmul(Q, K.transpose(-2, -1)) / (self.d_head ** 0.5)
         A = F.softmax(scores, dim=-1)
         Z = torch.matmul(A, V).transpose(1, 2).contiguous().view(batch_size, T, d)
-        return self.W_O(Z), A
+        return self.W_O(Z)
 
 
 class MLP(nn.Module):
@@ -128,82 +126,35 @@ class MLP(nn.Module):
 # ==== Step 4: Training Setup ==== #
 epochs = 150
 lr = 0.0005
-feature_expansion = FeatureExpansion(num_features, d)
-pos_encoding = PositionalEncoding(d, T)
-multihead_attention = MultiHeadSelfAttention(d, num_heads)
-mlp = MLP(d)
+feature_expansion = FeatureExpansion(num_features, d).to(device)
+pos_encoding = PositionalEncoding(d, T).to(device)
+multihead_attention = MultiHeadSelfAttention(d, num_heads).to(device)
+mlp = MLP(d).to(device)
 
 loss_fn = nn.HuberLoss(delta=1.0)
-optimizer = torch.optim.Adam(
-    list(feature_expansion.parameters()) +
-    list(pos_encoding.parameters()) +
-    list(multihead_attention.parameters()) +
-    list(mlp.parameters()), lr=lr
-)
+optimizer = torch.optim.Adam(list(feature_expansion.parameters()) +
+                             list(pos_encoding.parameters()) +
+                             list(multihead_attention.parameters()) +
+                             list(mlp.parameters()), lr=lr)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
 
-best_loss = float('inf')  # Initialize best_loss to a very large value
-counter = 0
-final_predictions = []  # List to store all final predictions
-
+# ==== Training Loop ==== #
 for epoch in range(epochs):
     for X_batch, sentiment_batch, Y_batch in train_loader:
         optimizer.zero_grad()
         X_expanded = feature_expansion(X_batch)
         X_pos = pos_encoding(X_expanded)
-        Z, A = multihead_attention(X_pos)
+        Z = multihead_attention(X_pos)
         prediction = mlp(Z, sentiment_batch)
-
-        # Denormalize the prediction (apply the inverse of normalization)
-        predicted_price = (prediction * df["Close"].std()) + df["Close"].mean()
-
-        # Store the final predictions of the last batch for later printing
-        final_predictions.append(predicted_price.detach().cpu().numpy())  # Detach and move to CPU, then convert to numpy
-
-        # Compute loss with normalized values
         loss = loss_fn(prediction, Y_batch)
         loss.backward()
         optimizer.step()
 
     scheduler.step(loss)
 
-    # Early stopping logic
-    if loss.item() < best_loss:
-        best_loss = loss.item()
-        counter = 0
-    else:
-        counter += 1
-
-    if counter >= 15:
-        print(f"Early stopping at epoch {epoch}. Final loss: {loss.item()}")
-
-        # Concatenate all predictions
-        final_predictions = np.concatenate(final_predictions, axis=0)
-
-        # Denormalize predictions
-        mean_close = df["Close"].mean()
-        std_close = df["Close"].std()
-        denormalized_predictions = (final_predictions * std_close) + mean_close
-
-        print("Prediction for tomorrow (denormalized):")
-        print(denormalized_predictions)  # Now it's actual price values
-        break
-
-    # Print loss at regular intervals
     if epoch % 10 == 0:
         print(f"Epoch {epoch}, Loss: {loss.item()}")
 
-if counter < 15:
-    print(f"Training completed at epoch {epochs-1}. Final loss: {loss.item()}")
-    print("Prediction for tomorrow (denormalized): ")
-
-    # Concatenate all predictions
-    final_predictions = np.concatenate(final_predictions, axis=0)
-
-    # Denormalize predictions
-    mean_close = df["Close"].mean()
-    std_close = df["Close"].std()
-    denormalized_predictions = (final_predictions * std_close) + mean_close
-
-    print(denormalized_predictions)  # Print denormalized prices
-
+# Final Predictions (Denormalized)
+final_predictions = (prediction.cpu().detach().numpy() * std_values["Close"]) + mean_values["Close"]
+print("Prediction for tomorrow:", final_predictions)
