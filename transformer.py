@@ -11,7 +11,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # ==== Step 1: Load Stock Data and Normalize ==== #
 print(os.getcwd())
-df = pd.read_csv(r"stocks_data.csv")
+df = pd.read_csv(r"stocks_history.csv")
 
 # Parameters
 T = 30  # Time steps (past days)
@@ -122,10 +122,13 @@ class MLP(nn.Module):
         sentiment_adjustment = self.sentiment_weight(sentiment)
         return stock_pred + sentiment_adjustment
 
-
 # ==== Step 4: Training Setup ==== #
 epochs = 150
 lr = 0.0005
+patience = 15  # Stop training if no improvement after 15 epochs
+best_loss = float("inf")
+early_stop_counter = 0
+
 feature_expansion = FeatureExpansion(num_features, d).to(device)
 pos_encoding = PositionalEncoding(d, T).to(device)
 multihead_attention = MultiHeadSelfAttention(d, num_heads).to(device)
@@ -140,6 +143,8 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', fa
 
 # ==== Training Loop ==== #
 for epoch in range(epochs):
+    epoch_loss = 0.0
+
     for X_batch, sentiment_batch, Y_batch in train_loader:
         optimizer.zero_grad()
         X_expanded = feature_expansion(X_batch)
@@ -150,11 +155,26 @@ for epoch in range(epochs):
         loss.backward()
         optimizer.step()
 
-    scheduler.step(loss)
+        epoch_loss += loss.item()
 
-    if epoch % 10 == 0:
-        print(f"Epoch {epoch}, Loss: {loss.item()}")
+    epoch_loss /= len(train_loader)
+    scheduler.step(epoch_loss)
+
+    print(f"Epoch {epoch}, Loss: {epoch_loss}")
+
+    # Early Stopping Logic
+    if epoch_loss < best_loss:
+        best_loss = epoch_loss
+        early_stop_counter = 0  # Reset counter when improvement is seen
+    else:
+        early_stop_counter += 1  # Increment counter if no improvement
+
+    if early_stop_counter >= patience:
+        print(f"Early stopping triggered at epoch {epoch}")
+        break
 
 # Final Predictions (Denormalized)
 final_predictions = (prediction.cpu().detach().numpy() * std_values["Close"]) + mean_values["Close"]
-print("Prediction for tomorrow:", final_predictions)
+final_predictions = final_predictions[-9:]
+print("Prediction for tomorrow:")
+print(final_predictions)
