@@ -7,7 +7,6 @@ import os
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split
 
-# Select device (GPU if available, otherwise CPU)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f"Using device: {device}")
 
@@ -99,7 +98,6 @@ for idx, stock in enumerate(stocks):
     sentiment_val_all.extend([sentiment] * len(X_val))
     sentiment_test_all.extend([sentiment] * len(X_test))
 
-# Convert to PyTorch tensors
 X_train_tensor = torch.tensor(np.array(X_train_all), dtype=torch.float32).to(device)
 y_train_tensor = torch.tensor(np.array(y_train_all), dtype=torch.float32).view(-1, 1).to(device)
 sentiment_train_tensor = torch.tensor(sentiment_train_all, dtype=torch.float32).view(-1, 1).to(device)
@@ -112,7 +110,6 @@ X_test_tensor = torch.tensor(np.array(X_test_all), dtype=torch.float32).to(devic
 y_test_tensor = torch.tensor(np.array(y_test_all), dtype=torch.float32).view(-1, 1).to(device)
 sentiment_test_tensor = torch.tensor(sentiment_test_all, dtype=torch.float32).view(-1, 1).to(device)
 
-# Create DataLoaders
 train_dataset = TensorDataset(X_train_tensor, sentiment_train_tensor, y_train_tensor)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
@@ -138,13 +135,13 @@ class PositionalEncoding(nn.Module):
     def __init__(self, d, max_len=1000):
         super().__init__()
         self.d = d
-        # Precompute the positional encodings
+  
         pe = torch.zeros(max_len, d)
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, d, 2).float() * (-np.log(10000.0) / d))
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        self.register_buffer('pe', pe.unsqueeze(0))  # Add batch dimension
+        self.register_buffer('pe', pe.unsqueeze(0)) 
 
     def forward(self, X):
         seq_len = X.shape[1]
@@ -180,7 +177,6 @@ class MultiHeadSelfAttention(nn.Module):
         Z = torch.matmul(A, V).transpose(1, 2).contiguous().view(batch_size, T, d)
         Z = self.W_O(Z)
 
-        # Residual connection
         return X + Z, A
 
 
@@ -244,7 +240,6 @@ class StockPredictionModel(nn.Module):
         self.alpha = nn.Parameter(torch.tensor([0.1], dtype=torch.float32))
 
     def forward(self, X, sentiment):
-        # Process time series data
         X = self.feature_expansion(X)
         X = self.positional_encoding(X)
 
@@ -254,11 +249,9 @@ class StockPredictionModel(nn.Module):
             X = ff(X)
             attentions.append(attn_weights)
 
-        # Final prediction
         time_series_pred = self.time_series_mlp(X[:, -1, :])
         sentiment_pred = self.sentiment_mlp(sentiment)
 
-        # Controlled combination of predictions
         final_pred = time_series_pred + self.alpha * sentiment_pred
 
         return final_pred, attentions
@@ -275,7 +268,6 @@ def train_epoch(model, dataloader, optimizer, criterion, device):
         loss = criterion(prediction, y_batch)
 
         loss.backward()
-        # Gradient clipping to prevent exploding gradients
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
@@ -299,7 +291,6 @@ def evaluate(model, dataloader, criterion, device):
             all_preds.extend(prediction.cpu().numpy())
             all_targets.extend(y_batch.cpu().numpy())
 
-    # Calculate mean absolute error and mean squared error
     mae = np.mean(np.abs(np.array(all_preds) - np.array(all_targets)))
     mse = np.mean((np.array(all_preds) - np.array(all_targets)) ** 2)
 
@@ -314,29 +305,24 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, mode='min', factor=0.5, patience=5, verbose=True
 )
 
-# Prepare for early stopping
 best_val_loss = float('inf')
 patience = 10
 patience_counter = 0
 epochs = 100
 
-# Training loop
 for epoch in range(epochs):
     train_loss = train_epoch(model, train_loader, optimizer, criterion, device)
     val_loss, val_mae, val_mse, _ = evaluate(model, val_loader, criterion, device)
 
-    # Print metrics
     print(f"Epoch {epoch + 1}/{epochs}")
     print(f"Train Loss: {train_loss:.6f}, Val Loss: {val_loss:.6f}, Val MAE: {val_mae:.6f}, Val MSE: {val_mse:.6f}")
 
-    # Scheduler step
     scheduler.step(val_loss)
 
-    # Early stopping
     if val_loss < best_val_loss:
         best_val_loss = val_loss
         patience_counter = 0
-        # Save best model
+
         torch.save(model.state_dict(), 'best_stock_model.pt')
         print("Model saved!")
     else:
@@ -345,18 +331,14 @@ for epoch in range(epochs):
             print(f"Early stopping at epoch {epoch + 1}")
             break
 
-# Load best model for final evaluation
 model.load_state_dict(torch.load('best_stock_model.pt'))
 
 # ==== Step 6: Final Evaluation and Inference ==== #
 test_loss, test_mae, test_mse, test_predictions = evaluate(model, test_loader, criterion, device)
 print(f"Test Loss: {test_loss:.6f}, Test MAE: {test_mae:.6f}, Test MSE: {test_mse:.6f}")
 
-# Denormalize predictions for final stocks in test set
-# First we need to create a mapping from test set indices to the original stocks
 test_predictions_denormalized = []
 
-# Create test set for inference on the last data points per stock
 inference_X = []
 inference_sentiment = []
 inference_stock_names = []
@@ -365,9 +347,8 @@ for idx, stock in enumerate(stocks):
     stock_df = df[df["Stock"] == stock].sort_values(by="Date", ascending=True)
 
     if len(stock_df) < HISTORY_WINDOW + 1:
-        continue  # Skip if not enough data
+        continue  
 
-    # Get the last HISTORY_WINDOW days of data for inference
     stock_features = np.zeros((HISTORY_WINDOW, num_features), dtype=np.float32)
 
     # Normalize using stored parameters
@@ -381,7 +362,6 @@ for idx, stock in enumerate(stocks):
     inference_sentiment.append(sentiment_values[idx].item())
     inference_stock_names.append(stock)
 
-# Convert to tensors for inference
 inference_X_tensor = torch.tensor(np.array(inference_X), dtype=torch.float32).to(device)
 inference_sentiment_tensor = torch.tensor(inference_sentiment, dtype=torch.float32).view(-1, 1).to(device)
 
