@@ -4,14 +4,14 @@ import { TrendingUp, TrendingDown } from "react-feather";
 import { cn } from "@/lib/utils";
 import { useStock } from "../contexts/StockContext";
 
-export function NewsArticle({ source, title, time, sentiment, url }) {
+export function NewsArticle({ title, time, sentiment, url }) {
   const isPositive = sentiment > 0;
 
   return (
     <div className="w-full rounded-lg bg-card p-4 shadow-sm transition-all hover:bg-accent/10">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-white">{source}</span>
+          {/* <span className="text-sm font-medium text-white">{source}</span> */}
           <span className="text-xs text-white/70">{time}</span>
         </div>
         <div className="flex items-center gap-1">
@@ -81,17 +81,35 @@ export function NewsArticleList() {
   }
 
   return (
-    <div className="mt-4 space-y-4">
-      {newsArticles.map((article) => (
-        <NewsArticle
-          key={article.id}
-          source="bloomberg"
-          title={article.headline}
-          time="time"
-          sentiment={article.sentimentScore}
-          url={article.url}
-        />
-      ))}
+    <div>
+      <div className="space-y-2">
+        {newsArticles.map((article, index) => (
+          <NewsArticle
+            key={article.id}
+            source=""
+            title={article.headline}
+            time={(() => {
+              // Generate time between 5 mins and 24 hours ago, scaled by index
+              const maxMinutes = 24 * 60; // 24 hours in minutes
+              const minMinutes = 5;
+              const minutes = Math.floor(
+                minMinutes +
+                  ((index + 1) / newsArticles.length) *
+                    (maxMinutes - minMinutes)
+              );
+
+              if (minutes < 60) {
+                return `${minutes} minutes ago`;
+              } else {
+                const hours = Math.floor(minutes / 60);
+                return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+              }
+            })()}
+            sentiment={article.sentimentScore}
+            url={article.url}
+          />
+        ))}
+      </div>
     </div>
   );
 }

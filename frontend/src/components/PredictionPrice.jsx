@@ -54,24 +54,28 @@ export const PredictionPrice = () => {
 
   return (
     <div className="p-6  space-y-4">
-      <h2 className="text-xl font-semibold text-white">
-        Closing Stock Price for Today
-      </h2>
-      <div className="text-2xl font-bold text-white">
-        ${lastStockClose.toFixed(2)}
+      <div>
+        <h2 className="text-lg font-semibold text-white">
+          Closing Stock Price for Today
+        </h2>
+        <div className="text-2xl font-bold text-white">
+          ${lastStockClose.toFixed(2)}
+        </div>
       </div>
-      <h2 className="text-xl font-semibold text-white">
-        Stock Price Prediction for Tomorrow
-      </h2>
-      {predictedPrice > lastStockClose ? (
-        <div className="text-2xl font-bold text-green-500">
-          ${predictedPrice.toFixed(2)}
-        </div>
-      ) : (
-        <div className="text-2xl font-bold text-red-500">
-          ${predictedPrice.toFixed(2)}
-        </div>
-      )}
+      <div>
+        <h2 className="text-lg font-semibold text-white">
+          Predicted Stock Price for Tomorrow
+        </h2>
+        {predictedPrice > lastStockClose ? (
+          <div className="text-2xl font-bold text-green-500">
+            ${predictedPrice.toFixed(2)}
+          </div>
+        ) : (
+          <div className="text-2xl font-bold text-red-500">
+            ${predictedPrice.toFixed(2)}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
