@@ -1,13 +1,12 @@
 from enum import Enum
 
 class Stock(Enum):
-    APPLE = "AAPL"
-    TESLA = "TSLA"
-    NVIDIA = "NVDA"
-    AMAZON = "AMZN"
-    MICROSOFT = "MSFT"
-    META = "META"
     ALIBABA = "BABA"
-    TENCENT = "0700.HK"
-    INTEL = "INTC"
+    AMAZON = "AMZN"
+    APPLE = "AAPL"
     HP = "HPQ"
+    INTEL = "INTC"
+    META = "META"
+    MICROSOFT = "MSFT"
+    NVIDIA = "NVDA"
+    TESLA = "TSLA"
