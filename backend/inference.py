@@ -1,54 +1,104 @@
 import torch
+import torch.nn as nn
+import pandas as pd
+import numpy as np
 
-from transformer import feature_expansion, pos_encoding, multihead_attention, MLP, load_stock_data  # Import model and function
-# Reshape fixed_sentiment_score to match the input shape expected by the model
-fixed_sentiment_score = torch.tensor([0.066, 0.088, 0.112, 0.153, 0.056, 0.021, 0.032, 0.07, 0.184], dtype=torch.float32)
-fixed_sentiment_score = fixed_sentiment_score.unsqueeze(0)  # Reshape from (9,) to (1, 9)
-fixed_sentiment_score = fixed_sentiment_score.unsqueeze(1)  # Reshape from (1, 9) to (1, 1, 9)
+class StockPredictorModel(nn.Module):
+    def __init__(self):
+        super(StockPredictorModel, self).__init__()
+        # The original model expects 1 feature per timestep (for each stock)
+        self.fc1 = nn.Linear(1, 16)   # Input: 1 feature per timestep, Output: 16
+        self.fc2 = nn.Linear(16, 16)  # Input: 16, Output: 16
+        self.fc3 = nn.Linear(16, 1)   # Input: 16, Output: 1 (final prediction)
+
+    def forward(self, x, sentiment):
+        # Flatten the input so that each stock's features are presented correctly to the model
+        x = x.view(-1, 1)  # Flatten to (batch_size * history_window, 1)
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x, None  # Modify as needed for your model's output
+
+
+# Device setup (CUDA or CPU)
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Load the trained model
-mlp = MLP(d=32)  # Initialize your model, make sure d is the correct input size
-mlp.load_state_dict(torch.load(r'C:\Users\akaas\PycharmProjects\Watcher\backend\best_stock_model.pt'))  # Load the trained model from .pth file
-mlp.eval()  # Set model to evaluation mode
+model_path = r'C:\Users\akaas\PycharmProjects\Watcher\stock_predictor_model.pth'
+model = StockPredictorModel()
+state_dict = torch.load(model_path)
+model.load_state_dict(state_dict)  # Load weights into the model
+model.to(device)
+model.eval()
 
-# Load the stock data (replace 'your_stock_data.csv' with the actual path)
-X = load_stock_data(r'C:\Users\akaas\PycharmProjects\Watcher\backend\stocks_data.csv')  # Shape: (9, 30, 5)
+# Read the stock data
+df = pd.read_csv(r"C:\Users\akaas\PycharmProjects\Watcher\backend\stocks_data.csv")
 
-# Perform inference for Day 31
-X_expanded = feature_expansion(X)
-X_pos = pos_encoding(X_expanded)
-Z, A = multihead_attention(X_pos)
-prediction_31 = mlp(Z, fixed_sentiment_score)
+HISTORY_WINDOW = 60  # Use 60 days of history for both training and inference
+sentiment_values = torch.tensor([0.066, 0.088, 0.112, 0.153, 0.056, 0.021, 0.032, 0.07, 0.184], dtype=torch.float32)
+stocks = sorted(df["Stock"].unique())
+num_features = 5  # Open, High, Low, Close, Volume
+normalization_params = {}
 
-# Convert prediction to NumPy for easy use
-prediction_31_values = prediction_31.detach().numpy()
+# Prepare for inference
+inference_X = []
+inference_sentiment = []
+inference_stock_names = []
 
-# Print the predictions for Day 31
-print("\nPredictions for Day 31:")
-for i, pred in enumerate(prediction_31_values):
-    print(f"Stock {i+1}: {pred[0]}")
+for idx, stock in enumerate(stocks):
+    stock_df = df[df["Stock"] == stock].sort_values(by="Date", ascending=True)
 
-# Use the prediction for Day 31 to predict Day 32 (if desired)
-prediction_31_tensor = prediction_31.unsqueeze(2).repeat(1, 1, 5)  # Shape: (9, 1, 5)
-X_new = torch.cat((X[:, 1:, :], prediction_31_tensor), dim=1)  # Shift window to include Day 31 prediction
+    # Skip stocks with insufficient data for inference
+    if len(stock_df) < HISTORY_WINDOW + 1:
+        continue
 
-X_expanded_32 = feature_expansion(X_new)
-X_pos_32 = pos_encoding(X_expanded_32)
-Z_32, A_32 = multihead_attention(X_pos_32)
-prediction_32 = mlp(Z_32, fixed_sentiment_score)  # Inference for Day 32
+    stock_features = np.zeros((HISTORY_WINDOW, num_features), dtype=np.float32)
 
-# Convert Day 32 prediction to NumPy
-prediction_32_values = prediction_32.detach().numpy()
+    # Normalize using stored parameters (same as during training)
+    for col_idx, col in enumerate(["Open", "High", "Low", "Close", "Volume"]):
+        mean = stock_df[col].mean()
+        std = stock_df[col].std()
 
-# Print the predictions for Day 32
-print("\nPredictions for Day 32:")
-for i, pred in enumerate(prediction_32_values):
-    print(f"Stock {i+1}: {pred[0]}")
+        # Save the normalization parameters for later use in denormalization
+        if col == "Close":
+            normalization_params[stock] = {"Close": {"mean": mean, "std": std}}
 
-# Save predictions to a file
-with open("future_predictions.txt", "w") as f:
-    for i in range(9):
-        f.write(f"Stock {i+1} - Day 31: {prediction_31_values[i][0]}\n")
-        f.write(f"Stock {i+1} - Day 32: {prediction_32_values[i][0]}\n")
+        # Get the last HISTORY_WINDOW days of raw stock values
+        raw_values = stock_df[col].values[-HISTORY_WINDOW:]
 
-print("Predictions saved to 'future_predictions.txt'")
+        # Apply normalization (same as training)
+        stock_features[:, col_idx] = (raw_values - mean) / std
+
+    # Append normalized features and sentiment to inference lists
+    inference_X.append(stock_features)
+    inference_sentiment.append(sentiment_values[idx].item())
+    inference_stock_names.append(stock)
+
+# Convert the normalized features and sentiment values into tensors
+inference_X_tensor = torch.tensor(np.array(inference_X), dtype=torch.float32).to(device)
+inference_sentiment_tensor = torch.tensor(inference_sentiment, dtype=torch.float32).view(-1, 1).to(device)
+
+# Flatten the input tensor (adjust the shape for the model)
+inference_X_tensor_flattened = inference_X_tensor.view(-1, 1)  # Flatten to (batch_size * history_window, 1)
+
+# ==== Make Predictions ==== #
+model.eval()
+with torch.no_grad():
+    predictions, _ = model(inference_X_tensor_flattened, inference_sentiment_tensor)
+    normalized_predictions = predictions.cpu().numpy().flatten()
+
+# Denormalize predictions to actual stock price values
+final_predictions = []
+for i, stock in enumerate(inference_stock_names):
+    close_mean = normalization_params[stock]['Close']['mean']
+    close_std = normalization_params[stock]['Close']['std']
+
+    # Denormalize using the mean and std of the 'Close' column
+    denormalized_pred = normalized_predictions[i] * close_std + close_mean
+    final_predictions.append(denormalized_pred)
+
+    # Output the prediction for each stock
+    print(f"Stock: {stock}, Predicted Close: ${denormalized_pred:.2f}")
+
+# Output the final predictions
+print("Final predictions:", final_predictions)
