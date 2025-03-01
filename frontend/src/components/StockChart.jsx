@@ -1,14 +1,22 @@
 "use client";
-import { AreaSeries, createChart, ColorType } from "lightweight-charts";
+import {
+  AreaSeries,
+  createChart,
+  ColorType,
+  LineSeries,
+} from "lightweight-charts";
 import React, { useEffect, useRef } from "react";
+
+const grey800 = "#1e293b";
+const grey700 = "#334155";
 
 export const ChartComponent = (props) => {
   const {
     data,
     colors: {
-      backgroundColor = "white",
-      lineColor = "#2962FF",
-      textColor = "black",
+      backgroundColor = "black",
+      lineColor = "#2962FF", //TODO: should
+      textColor = "white",
       areaTopColor = "#2962FF",
       areaBottomColor = "rgba(41, 98, 255, 0.28)",
     } = {},
@@ -28,13 +36,41 @@ export const ChartComponent = (props) => {
       },
       width: chartContainerRef.current.clientWidth,
       height: 300,
+      grid: {
+        vertLines: { color: grey800 },
+        horzLines: { color: grey800 },
+      },
+      crosshair: {
+        // Vertical crosshair line (showing Date in Label)
+        vertLine: {
+          labelBackgroundColor: grey800,
+        },
+        // Horizontal crosshair line (showing Price in Label)
+        horzLine: {
+          labelBackgroundColor: grey800,
+        },
+      },
     });
     chart.timeScale().fitContent();
 
-    const newSeries = chart.addSeries(AreaSeries, {
-      lineColor,
-      topColor: areaTopColor,
-      bottomColor: areaBottomColor,
+    // // Customizing the Crosshair
+    // chart.applyOptions({
+    //   crosshair: {
+    //     // Vertical crosshair line (showing Date in Label)
+    //     vertLine: {
+    //       labelBackgroundColor: "#0f172a",
+    //     },
+    //     // Horizontal crosshair line (showing Price in Label)
+    //     horzLine: {
+    //       labelBackgroundColor: "#0f172a",
+    //     },
+    //   },
+    // });
+
+    const newSeries = chart.addSeries(LineSeries, {
+      color: lineColor,
+      // topColor: areaTopColor,
+      // bottomColor: areaBottomColor,
     });
     newSeries.setData(data);
 
