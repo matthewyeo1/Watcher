@@ -4,7 +4,7 @@ import React, { useEffect } from "react";
 import { useStock } from "../contexts/StockContext";
 
 export const PredictionPrice = () => {
-  const { selectedStock } = useStock();
+  const { selectedStock, lastStockClose } = useStock();
   const [prediction, setPrediction] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
@@ -53,14 +53,25 @@ export const PredictionPrice = () => {
   const predictedPrice = latestPrediction.close;
 
   return (
-    <div className="p-6 rounded-lg bg-slate-900 space-y-4">
+    <div className="p-6  space-y-4">
       <h2 className="text-xl font-semibold text-white">
-        Stock Price Prediction
+        Closing Stock Price for Today
       </h2>
-      <div className="text-white">{selectedStock} Price Prediction:</div>
-      <div className="text-2xl font-bold text-green-500">
-        ${predictedPrice.toFixed(2)}
+      <div className="text-2xl font-bold text-white">
+        ${lastStockClose.toFixed(2)}
       </div>
+      <h2 className="text-xl font-semibold text-white">
+        Stock Price Prediction for Tomorrow
+      </h2>
+      {predictedPrice > lastStockClose ? (
+        <div className="text-2xl font-bold text-green-500">
+          ${predictedPrice.toFixed(2)}
+        </div>
+      ) : (
+        <div className="text-2xl font-bold text-red-500">
+          ${predictedPrice.toFixed(2)}
+        </div>
+      )}
     </div>
   );
 };

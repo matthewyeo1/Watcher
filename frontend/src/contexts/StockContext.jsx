@@ -18,9 +18,17 @@ const StockContext = createContext();
 
 export function StockProvider({ children }) {
   const [selectedStock, setSelectedStock] = useState(STOCK_OPTIONS[0].value);
+  const [lastStockClose, setLastStockClose] = useState(0);
 
   return (
-    <StockContext.Provider value={{ selectedStock, setSelectedStock }}>
+    <StockContext.Provider
+      value={{
+        selectedStock,
+        setSelectedStock,
+        lastStockClose,
+        setLastStockClose,
+      }}
+    >
       {children}
     </StockContext.Provider>
   );

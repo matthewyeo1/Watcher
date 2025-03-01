@@ -76,7 +76,7 @@ export const ChartComponent = (props) => {
 };
 
 export function StockChart(props) {
-  const { selectedStock, setSelectedStock } = useStock();
+  const { selectedStock, setSelectedStock, setLastStockClose } = useStock();
   const [chartData, setChartData] = React.useState([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
@@ -106,6 +106,7 @@ export function StockChart(props) {
             value: item.close,
           }));
         setChartData(sortedData);
+        setLastStockClose(sortedData[sortedData.length - 1].close);
       } catch (error) {
         console.error("Error fetching stock data:", error);
         setError(error.message);
