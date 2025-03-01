@@ -18,7 +18,7 @@ def load_stock_data(csv_file):
 
 
 # Set a fixed sentiment score (for example, you can use any value)
-fixed_sentiment_score = torch.tensor([[0.5]], dtype=torch.float32)  # Example fixed sentiment score
+fixed_sentiment_score =  torch.tensor([0.066, 0.088, 0.112, 0.153, 0.056, 0.021, 0.032, 0.07, 0.184], dtype=torch.float32)  # Example fixed sentiment score
 
 
 # ==== Step 2: Feature Expansion ==== #
@@ -114,7 +114,7 @@ optimizer = torch.optim.Adam(
 
 # ==== Step 7: Load Data and Start Training ==== #
 # Load stock data from a CSV file (replace 'your_stock_data.csv' with the actual path)
-X = load_stock_data('your_stock_data.csv')  # Load the first 30 days of stock data
+X = load_stock_data(r'C:\Users\akaas\PycharmProjects\Watcher\backend\stocks_data.csv')  # Load the first 30 days of stock data
 Y = torch.randn(1, 1)  # Target for Day 31 (this can be replaced with actual target data)
 
 # Training Loop

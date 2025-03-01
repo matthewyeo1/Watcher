@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "lightweight-charts": "^5.0.3",
-    "next": "15.2.0",
+    "next": "^15.2.0",
+    "papaparse": "^5.5.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
