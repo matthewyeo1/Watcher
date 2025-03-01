@@ -37,7 +37,7 @@ export function NewsArticle({ title, time, sentiment, url }) {
   );
 }
 
-export function NewsArticleList() {
+export function NewsArticleList({ articles }) {
   const { selectedStock } = useStock();
   const [newsArticles, setNewsArticles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,9 +75,7 @@ export function NewsArticleList() {
   }
 
   if (error) {
-    return (
-      <div className="text-center text-sm text-red-500">Error: {error}</div>
-    );
+    return <div className="text-center text-sm text-red-500">Error: {error}</div>;
   }
 
   return (
@@ -85,25 +83,20 @@ export function NewsArticleList() {
       <div className="space-y-2">
         {newsArticles.map((article, index) => (
           <NewsArticle
-            key={article.id}
+            key={article.id || `article-${index}`} // ✅ Unique key fallback
             source=""
             title={article.headline}
             time={(() => {
-              // Generate time between 5 mins and 24 hours ago, scaled by index
-              const maxMinutes = 24 * 60; // 24 hours in minutes
+              const maxMinutes = 24 * 60; 
               const minMinutes = 5;
               const minutes = Math.floor(
                 minMinutes +
-                  ((index + 1) / newsArticles.length) *
-                    (maxMinutes - minMinutes)
+                ((index + 1) / newsArticles.length) * (maxMinutes - minMinutes)
               );
 
-              if (minutes < 60) {
-                return `${minutes} minutes ago`;
-              } else {
-                const hours = Math.floor(minutes / 60);
-                return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
-              }
+              return minutes < 60
+                ? `${minutes} minutes ago`
+                : `${Math.floor(minutes / 60)} hours ago`;
             })()}
             sentiment={article.sentimentScore}
             url={article.url}

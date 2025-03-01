@@ -56,7 +56,7 @@ export const PredictionPrice = () => {
     <div className="p-6  space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-white">
-          Closing Stock Price for Today
+          Closing Stock Price for Today:
         </h2>
         <div className="text-2xl font-bold text-white">
           ${lastStockClose.toFixed(2)}
@@ -64,7 +64,7 @@ export const PredictionPrice = () => {
       </div>
       <div>
         <h2 className="text-lg font-semibold text-white">
-          Predicted Stock Price for Tomorrow
+          Predicted Stock Price for Tomorrow:
         </h2>
         {predictedPrice > lastStockClose ? (
           <div className="text-2xl font-bold text-green-500">
