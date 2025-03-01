@@ -1,6 +1,6 @@
 import { StockChart } from "@/components/StockChart";
 import { PredictionPrice } from "@/components/PredictionPrice";
-import { NewsArticle } from "@/components/NewsArticle";
+import { NewsArticle, NewsArticleList } from "@/components/NewsArticle";
 
 export default function Home() {
   //const [stock, setStock] = React.useState("ALIBABA");
@@ -13,6 +13,7 @@ export default function Home() {
       <main className="max-w-7xl mx-auto">
         <StockChart />
         <PredictionPrice />
+        <NewsArticleList />
         <NewsArticle
           source="Reuters"
           title="Apple to buy $100M of Bitcoin"

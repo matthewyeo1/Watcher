@@ -1,9 +1,10 @@
 "use client";
-
+import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown } from "react-feather";
 import { cn } from "@/lib/utils";
+import { useStock } from "../contexts/StockContext";
 
-export function NewsArticle({ source, title, time, sentiment }) {
+export function NewsArticle({ source, title, time, sentiment, url }) {
   const isPositive = sentiment > 0;
 
   return (
@@ -29,7 +30,68 @@ export function NewsArticle({ source, title, time, sentiment }) {
           </span>
         </div>
       </div>
-      <h3 className="mt-2 text-base font-medium text-white">{title}</h3>
+      <h3 className="mt-2 text-base font-medium text-white hover:underline">
+        <a href={url}>{title}</a>
+      </h3>
+    </div>
+  );
+}
+
+export function NewsArticleList() {
+  const { selectedStock } = useStock();
+  const [newsArticles, setNewsArticles] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function fetchNewsArticles() {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const url = new URL("http://localhost:5000/api/news");
+        url.searchParams.append("stock", selectedStock);
+
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to fetch news articles");
+        }
+
+        const data = await response.json();
+        setNewsArticles(data);
+        setIsLoading(false);
+      } catch (err) {
+        setError(err.message);
+        setIsLoading(false);
+      }
+    }
+
+    fetchNewsArticles();
+  }, [selectedStock]);
+
+  if (isLoading) {
+    return <div className="text-center text-sm text-white/70">Loading...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="text-center text-sm text-red-500">Error: {error}</div>
+    );
+  }
+
+  return (
+    <div className="mt-4 space-y-4">
+      {newsArticles.map((article) => (
+        <NewsArticle
+          key={article.id}
+          source="bloomberg"
+          title={article.headline}
+          time="time"
+          sentiment={article.sentimentScore}
+          url={article.url}
+        />
+      ))}
     </div>
   );
 }

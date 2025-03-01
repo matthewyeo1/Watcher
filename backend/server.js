@@ -99,7 +99,10 @@ app.get("/api/news", (req, res) => {
     )
     .on("data", (data) => {
       // Only push data if it matches the stock filter
-      if (filterByStock(data, stockName)) {
+      if (
+        filterByStock(data, stockName) &&
+        Number(data["Sentiment Score"]) !== 0 //filters out the neutral articles
+      ) {
         results.push({
           stock: data.Stock,
           headline: data.Headline,
