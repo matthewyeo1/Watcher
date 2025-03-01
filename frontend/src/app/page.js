@@ -8,7 +8,7 @@ export default function Home() {
           Stock Price Chart
         </h1>
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-          <StockChart />
+          <StockChart stock="ALIBABA" />
         </div>
       </main>
     </div>

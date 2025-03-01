@@ -57,19 +57,61 @@ export const ChartComponent = (props) => {
   return <div ref={chartContainerRef} />;
 };
 
-const initialData = [
-  { time: "2018-12-22", value: 32.51 },
-  { time: "2018-12-23", value: 31.11 },
-  { time: "2018-12-24", value: 27.02 },
-  { time: "2018-12-25", value: 27.32 },
-  { time: "2018-12-26", value: 25.17 },
-  { time: "2018-12-27", value: 28.89 },
-  { time: "2018-12-28", value: 25.46 },
-  { time: "2018-12-29", value: 23.92 },
-  { time: "2018-12-30", value: 22.68 },
-  { time: "2018-12-31", value: 22.67 },
-];
-
 export function StockChart(props) {
-  return <ChartComponent {...props} data={initialData}></ChartComponent>;
+  const [chartData, setChartData] = React.useState([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
+  const { stock } = props;
+
+  useEffect(() => {
+    async function fetchStockData() {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const url = new URL("http://localhost:5000/api/stocks");
+        if (stock) {
+          url.searchParams.append("stock", stock);
+        }
+
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to fetch stock data");
+        }
+
+        const data = await response.json();
+        // Sort data by date (oldest to newest)
+        const sortedData = data
+          .sort((a, b) => new Date(a.time) - new Date(b.time))
+          .map((item) => ({
+            ...item,
+            time: new Date(item.time).toISOString().split("T")[0],
+            value: item.close,
+          }));
+        setChartData(sortedData);
+      } catch (error) {
+        console.error("Error fetching stock data:", error);
+        setError(error.message);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchStockData();
+  }, [stock]);
+
+  if (isLoading) {
+    return <div>Loading chart data...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
+
+  if (chartData.length === 0) {
+    return <div>No data available</div>;
+  }
+
+  return <ChartComponent {...props} data={chartData} />;
 }
