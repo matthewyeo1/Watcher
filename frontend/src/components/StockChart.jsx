@@ -6,6 +6,7 @@ import {
   LineSeries,
 } from "lightweight-charts";
 import React, { useEffect, useRef } from "react";
+import { STOCK_OPTIONS, useStock } from "../contexts/StockContext";
 
 const grey800 = "#1e293b";
 const grey700 = "#334155";
@@ -15,7 +16,7 @@ export const ChartComponent = (props) => {
     data,
     colors: {
       backgroundColor = "black",
-      lineColor = "#2962FF", //TODO: should
+      lineColor = "#2962FF",
       textColor = "white",
       areaTopColor = "#2962FF",
       areaBottomColor = "rgba(41, 98, 255, 0.28)",
@@ -41,11 +42,9 @@ export const ChartComponent = (props) => {
         horzLines: { color: grey800 },
       },
       crosshair: {
-        // Vertical crosshair line (showing Date in Label)
         vertLine: {
           labelBackgroundColor: grey800,
         },
-        // Horizontal crosshair line (showing Price in Label)
         horzLine: {
           labelBackgroundColor: grey800,
         },
@@ -53,24 +52,8 @@ export const ChartComponent = (props) => {
     });
     chart.timeScale().fitContent();
 
-    // // Customizing the Crosshair
-    // chart.applyOptions({
-    //   crosshair: {
-    //     // Vertical crosshair line (showing Date in Label)
-    //     vertLine: {
-    //       labelBackgroundColor: "#0f172a",
-    //     },
-    //     // Horizontal crosshair line (showing Price in Label)
-    //     horzLine: {
-    //       labelBackgroundColor: "#0f172a",
-    //     },
-    //   },
-    // });
-
     const newSeries = chart.addSeries(LineSeries, {
       color: lineColor,
-      // topColor: areaTopColor,
-      // bottomColor: areaBottomColor,
     });
     newSeries.setData(data);
 
@@ -78,7 +61,6 @@ export const ChartComponent = (props) => {
 
     return () => {
       window.removeEventListener("resize", handleResize);
-
       chart.remove();
     };
   }, [
@@ -94,10 +76,10 @@ export const ChartComponent = (props) => {
 };
 
 export function StockChart(props) {
+  const { selectedStock, setSelectedStock } = useStock();
   const [chartData, setChartData] = React.useState([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
-  const { stock } = props;
 
   useEffect(() => {
     async function fetchStockData() {
@@ -106,9 +88,7 @@ export function StockChart(props) {
         setError(null);
 
         const url = new URL("http://localhost:5000/api/stocks");
-        if (stock) {
-          url.searchParams.append("stock", stock);
-        }
+        url.searchParams.append("stock", selectedStock);
 
         const response = await fetch(url);
         if (!response.ok) {
@@ -135,19 +115,40 @@ export function StockChart(props) {
     }
 
     fetchStockData();
-  }, [stock]);
+  }, [selectedStock]);
 
-  if (isLoading) {
-    return <div>Loading chart data...</div>;
-  }
+  return (
+    <div className="p-6 rounded-lg bg-slate-900 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-white">Stock Price Chart</h2>
+        <select
+          value={selectedStock}
+          onChange={(e) => setSelectedStock(e.target.value)}
+          className="bg-slate-800 text-white px-4 py-2 rounded-md border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-slate-700 transition-colors"
+        >
+          {STOCK_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
-  if (error) {
-    return <div>Error: {error}</div>;
-  }
-
-  if (chartData.length === 0) {
-    return <div>No data available</div>;
-  }
-
-  return <ChartComponent {...props} data={chartData} />;
+      {isLoading ? (
+        <div className="h-[300px] flex items-center justify-center text-slate-400">
+          Loading chart data...
+        </div>
+      ) : error ? (
+        <div className="h-[300px] flex items-center justify-center text-red-400">
+          Error: {error}
+        </div>
+      ) : chartData.length === 0 ? (
+        <div className="h-[300px] flex items-center justify-center text-slate-400">
+          No data available
+        </div>
+      ) : (
+        <ChartComponent {...props} data={chartData} />
+      )}
+    </div>
+  );
 }
